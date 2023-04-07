@@ -37,7 +37,7 @@ class CodeBlockSpider(CrawlSpider):
         self.driver.set_page_load_timeout(10)
 
         self.start_urls = [start_point]
-        self.allowed_domains = [domain_zone]
+        self.domain_zone = "" if domain_zone.lower() in ("any", "*") else domain_zone
         self.query = query
         self.PARSED_LINKS_LIMIT_PER_URL = parsed_links_limit_per_url
         self.MAXIMUM_URL_DEEP_LEVEL = max_url_deep_level
@@ -64,9 +64,8 @@ class CodeBlockSpider(CrawlSpider):
             return
         body = to_bytes(self.driver.page_source)
         selenium_response = HtmlResponse(response.url, body=body, encoding='utf-8')
-        # selenium_response = response
 
-        if self.MAXIMUM_URL_DEEP_LEVEL > 0 and url_deep_level > self.MAXIMUM_URL_DEEP_LEVEL:
+        if 0 < self.MAXIMUM_URL_DEEP_LEVEL < url_deep_level:
             return
         
         # Extract all links from the response
@@ -103,11 +102,11 @@ class CodeBlockSpider(CrawlSpider):
 
         # Filter out already processed links to prevent infinite loops from all sources
         new_links = [link for link in links
-                     if urlparse(link).netloc.endswith(self.allowed_domains[0]) and (link not in self.processed_links)]
-        
+                     if urlparse(link).netloc.endswith(self.domain_zone) and (link not in self.processed_links)]
+
         # or Filter out from the body of response
         # new_links = [link.url for link in LinkExtractor().extract_links(response)
-        #              if (self.allowed_domains[0] in link.url) and (link.url not in self.processed_links)]
+        #              if (self.domain_zone in link.url) and (link.url not in self.processed_links)]
 
         if self.PARSED_LINKS_LIMIT_PER_URL > 0:
             new_links = new_links[:self.PARSED_LINKS_LIMIT_PER_URL]
@@ -123,11 +122,8 @@ class CodeBlockSpider(CrawlSpider):
         with open(self.output_filename_txt, mode='a', newline='') as file:
             file.write(f"{response.url}\n")
 
-        # logging.log(CUSTOM_PRINT_LOG_LEVEL, new_links)
-
         # Add new links to the queue
         if self.MAXIMUM_URL_DEEP_LEVEL > 0 and url_deep_level + 1 <= self.MAXIMUM_URL_DEEP_LEVEL:
-            # logging.log(CUSTOM_PRINT_LOG_LEVEL, new_links)
             for link in new_links:
                 self.crawler.engine.crawl(
                     scrapy.Request(

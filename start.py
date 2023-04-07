@@ -44,7 +44,7 @@ if __name__ == "__main__":
                         default='https://bigmir.net',
                         help="start url")
     parser.add_argument("-d", "--domain_zone", 
-                        default='.net',
+                        default='any',
                         help="domain zones to scrape")
     parser.add_argument("-q", "--query", 
                         default='analytics.js',

@@ -2,6 +2,13 @@
 
 The file contains important changes from version to version
 
+
+## v0.1.0 - (2023.04.07 - ...)
+
+### Features
+
+* Added new domain zone: `any`
+
 ## v0.1.0 - (2023.03.13 - 2023.04.07)
 
 ### Features
