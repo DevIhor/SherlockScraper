@@ -1,5 +1,7 @@
 import csv
 import logging
+import os.path
+
 import scrapy
 
 from urllib.parse import urljoin, urlparse
@@ -18,24 +20,33 @@ from selenium.webdriver.support.wait import WebDriverWait
 from twisted.internet.error import DNSLookupError
 
 CUSTOM_PRINT_LOG_LEVEL = 60
+LOGS_FOLDER = '.logs'
+SELENIUM_LOGGER_FILENAME = os.path.join(LOGS_FOLDER, 'selenium')
+
 logging.addLevelName(CUSTOM_PRINT_LOG_LEVEL, 'CUSTOM_PRINT_LOG_LEVEL')
 
-logging.getLogger('selenium').setLevel(CUSTOM_PRINT_LOG_LEVEL)
+# Selenium logging
+selenium_logger = logging.getLogger('selenium')
+selenium_fileHandler = logging.FileHandler(SELENIUM_LOGGER_FILENAME)
+selenium_formatter = logging.Formatter("%(asctime)s :%(levelname)s : %(name)s :%(message)s")
+selenium_fileHandler.setFormatter(selenium_formatter)
+selenium_logger.addHandler(selenium_fileHandler)
+selenium_logger.setLevel(logging.INFO)
 
 
 class CodeBlockSpider(CrawlSpider):
     name = 'code_block_spider'
+    LOGS_FILENAME = "spider"
     retry_enabled = False
+    configure_logging(install_root_handler=False)
+    logging.basicConfig(
+        filename=os.path.join(LOGS_FOLDER, LOGS_FILENAME),
+        format='%(levelname)s: %(message)s',
+        level=logging.INFO
+    )
 
     def __init__(self, start_point, domain_zone, query, parsed_links_limit_per_url, max_url_deep_level):
-        configure_logging(install_root_handler=False)
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--ignore-certificate-errors')
-        chrome_options.add_argument('--incognito')
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.driver.set_page_load_timeout(10)
-
+        # Initial data
         self.start_urls = [start_point]
         self.domain_zone = "" if domain_zone.lower() in ("any", "*") else domain_zone
         self.query = query
@@ -47,6 +58,16 @@ class CodeBlockSpider(CrawlSpider):
         self.output_filename_txt = "output.txt"
         self.result_filename = "query_output.csv"
         self.result_filename_txt = "query_output.txt"
+
+        # Selenium options
+        p = webdriver.FirefoxProfile()
+        p.set_preference("webdriver.log.file", "/tmp/firefox_console")
+        chrome_options = Options()
+        chrome_options.add_argument('--headless')
+        chrome_options.add_argument('--ignore-certificate-errors')
+        chrome_options.add_argument('--incognito')
+        self.driver = webdriver.Chrome(options=chrome_options)
+        self.driver.set_page_load_timeout(10)
 
     def close(self, reason):
         self.driver.close()

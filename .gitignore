@@ -135,3 +135,4 @@ query_output.csv
 query_output.txt
 
 .idea
+.logs/*

@@ -3,7 +3,7 @@ import os
 
 from scrapy.crawler import CrawlerProcess
 
-from sherlock.spiders.code_block_spider import CodeBlockSpider
+from sherlock.spiders.code_block_spider import CodeBlockSpider, LOGS_FOLDER, SELENIUM_LOGGER_FILENAME
 
 crawler_settings = {
     'LOG_LEVEL': 'CUSTOM_PRINT_LOG_LEVEL',
@@ -27,6 +27,14 @@ def prepare_data_files():
         os.remove(result_filename)
     if os.path.isfile(result_filename_txt):
         os.remove(result_filename_txt)
+
+    # Clean logs file
+    if not os.path.exists(LOGS_FOLDER):
+        os.makedirs(LOGS_FOLDER)
+    if os.path.getsize(CodeBlockSpider.LOGS_FILENAME) < 5 * 1024 * 1024:
+        os.remove(CodeBlockSpider.LOGS_FILENAME)
+    if os.path.getsize(SELENIUM_LOGGER_FILENAME) < 5 * 1024 * 1024:
+        os.remove(SELENIUM_LOGGER_FILENAME)
     
     # Add headers to csv files
     with open(output_filename, 'w', newline='') as file:
