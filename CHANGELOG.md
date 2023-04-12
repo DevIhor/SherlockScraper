@@ -8,6 +8,7 @@ The file contains important changes from version to version
 ### Features
 
 * Added new domain zone: `any`
+* File logging (scrapy + selenium)
 
 ## v0.1.0 - (2023.03.13 - 2023.04.07)
 

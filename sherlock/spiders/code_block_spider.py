@@ -10,7 +10,6 @@ from scrapy.http import HtmlResponse
 from scrapy.utils.python import to_bytes
 from scrapy.spiders import CrawlSpider
 # from scrapy.linkextractors import LinkExtractor
-from scrapy.utils.log import configure_logging
 
 from selenium import webdriver
 from selenium.common import TimeoutException
@@ -20,38 +19,25 @@ from selenium.webdriver.support.wait import WebDriverWait
 from twisted.internet.error import DNSLookupError
 
 CUSTOM_PRINT_LOG_LEVEL = 60
-LOGS_FOLDER = '.logs'
-SELENIUM_LOGGER_FILENAME = os.path.join(LOGS_FOLDER, 'selenium')
-
 logging.addLevelName(CUSTOM_PRINT_LOG_LEVEL, 'CUSTOM_PRINT_LOG_LEVEL')
 
-# Selenium logging
-selenium_logger = logging.getLogger('selenium')
-selenium_fileHandler = logging.FileHandler(SELENIUM_LOGGER_FILENAME)
-selenium_formatter = logging.Formatter("%(asctime)s :%(levelname)s : %(name)s :%(message)s")
-selenium_fileHandler.setFormatter(selenium_formatter)
-selenium_logger.addHandler(selenium_fileHandler)
-selenium_logger.setLevel(logging.INFO)
+console = logging.StreamHandler()
+console.setLevel(CUSTOM_PRINT_LOG_LEVEL)
+logging.getLogger('').addHandler(console)
 
 
 class CodeBlockSpider(CrawlSpider):
     name = 'code_block_spider'
-    LOGS_FILENAME = "spider"
+    LOGS_FOLDER = '.logs'
     retry_enabled = False
-    configure_logging(install_root_handler=False)
-    logging.basicConfig(
-        filename=os.path.join(LOGS_FOLDER, LOGS_FILENAME),
-        format='%(levelname)s: %(message)s',
-        level=logging.INFO
-    )
 
     def __init__(self, start_point, domain_zone, query, parsed_links_limit_per_url, max_url_deep_level):
-        # Initial data
         self.start_urls = [start_point]
         self.domain_zone = "" if domain_zone.lower() in ("any", "*") else domain_zone
         self.query = query
         self.PARSED_LINKS_LIMIT_PER_URL = parsed_links_limit_per_url
         self.MAXIMUM_URL_DEEP_LEVEL = max_url_deep_level
+        self.processed_links = []
 
         # Prepare data files
         self.output_filename = "output.csv"
@@ -59,15 +45,57 @@ class CodeBlockSpider(CrawlSpider):
         self.result_filename = "query_output.csv"
         self.result_filename_txt = "query_output.txt"
 
-        # Selenium options
-        p = webdriver.FirefoxProfile()
-        p.set_preference("webdriver.log.file", "/tmp/firefox_console")
+        self.prepare_env()
+        self.configure_selenium_driver()
+
+    def configure_selenium_driver(self) -> None:
         chrome_options = Options()
         chrome_options.add_argument('--headless')
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--incognito')
         self.driver = webdriver.Chrome(options=chrome_options)
         self.driver.set_page_load_timeout(10)
+
+    def get_start_url_repr(self) -> str:
+        return str(urlparse(self.start_urls[0]).netloc).replace(".", "_")
+
+    def prepare_env(
+            self
+    ) -> None:
+        output_filename = "output.csv"
+        output_filename_txt = "output.txt"
+        result_filename = "query_output.csv"
+        result_filename_txt = "query_output.txt"
+
+        if not os.path.exists(self.LOGS_FOLDER):
+            os.makedirs(self.LOGS_FOLDER)
+
+        # Remove old data files
+        if os.path.isfile(output_filename):
+            os.remove(output_filename)
+        if os.path.isfile(output_filename_txt):
+            os.remove(output_filename_txt)
+        if os.path.isfile(result_filename):
+            os.remove(result_filename)
+        if os.path.isfile(result_filename_txt):
+            os.remove(result_filename_txt)
+
+        # Add headers to csv files
+        with open(output_filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["URL", "Deep Level"])
+        with open(result_filename, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Base URL", "Search Query"])
+
+    def start_requests(self):
+        # Start the spider by visiting the start URL
+        yield scrapy.Request(
+            url=self.start_urls[0],
+            callback=self.parse,
+            errback=self.parse_error,
+            cb_kwargs={'url_deep_level': 0}
+        )
 
     def close(self, reason):
         self.driver.close()
@@ -77,6 +105,9 @@ class CodeBlockSpider(CrawlSpider):
             return
 
     def parse(self, response, url_deep_level):
+        logging.log(logging.INFO, f"Started processing {response.url}")
+
+        # Extract SPA content
         try:
             self.driver.get(response.url)
             WebDriverWait(self.driver, 10).until(
@@ -159,15 +190,3 @@ class CodeBlockSpider(CrawlSpider):
                     f"Processed - {len(self.processed_links)} links. "
                     f"In Queue - {len(self.crawler.engine.slot.scheduler)} links. "
                     f"Current url deep level - {url_deep_level}. ")
-
-    def start_requests(self):
-        self.processed_links = []
-
-        # Start the spider by visiting the start URL
-        yield scrapy.Request(
-            url=self.start_urls[0], 
-            callback=self.parse, 
-            errback=self.parse_error,
-            cb_kwargs={'url_deep_level': 0}
-        )
-
