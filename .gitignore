@@ -136,3 +136,5 @@ query_output.txt
 
 .idea
 .logs/*
+results/*
+debug*

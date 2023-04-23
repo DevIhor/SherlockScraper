@@ -1,6 +1,7 @@
+import argparse
 import os
-from urllib.parse import urlparse
 
+from urllib.parse import urlparse
 from scrapy.crawler import CrawlerProcess
 
 from sherlock.spiders.code_block_spider import CodeBlockSpider
@@ -16,7 +17,7 @@ crawler_settings = {
 
 
 if __name__ == "__main__":
-    import argparse
+    # Configure parsing arguments
     parser = argparse.ArgumentParser(description="URL scraper", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("-u", "--start_point", 
                         default='https://bigmir.net',
@@ -39,12 +40,28 @@ if __name__ == "__main__":
                         type=int,
                         default=100,
                         help="number of concurrent requests")
+    parser.add_argument('--full_search',
+                        action='store_true',
+                        help="switch on full search mode (default is only links)")
     args = parser.parse_args()
+
+    # # Create .logs folder if missing
+    # if not os.path.exists(CodeBlockSpider.LOGS_FOLDER):
+    #     os.makedirs(CodeBlockSpider.LOGS_FOLDER)
+    #
+    # # Create results folder if missing
+    # if not os.path.exists(CodeBlockSpider.RESULTS_FOLDER):
+    #     os.makedirs(CodeBlockSpider.RESULTS_FOLDER)
+
+    # Set crawler settings
     crawler_settings['CONCURRENT_REQUESTS'] = args.concurrency
     crawler_settings['LOG_FILE'] = os.path.join(
         CodeBlockSpider.LOGS_FOLDER,
         f"{str(urlparse(args.start_point).netloc).replace('.', '_')}.log"
     )
+
+    # Start crawling
+    CodeBlockSpider.prepare_env()
 
     process = CrawlerProcess(crawler_settings)
     process.crawl(
@@ -53,6 +70,7 @@ if __name__ == "__main__":
         domain_zone=args.domain_zone, 
         query=args.query, 
         parsed_links_limit_per_url=args.links_per_url, 
-        max_url_deep_level=args.scraping_deep_level
+        max_url_deep_level=args.scraping_deep_level,
+        full_search=args.full_search
     )
     process.start()

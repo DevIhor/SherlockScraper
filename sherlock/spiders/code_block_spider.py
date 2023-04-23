@@ -1,6 +1,8 @@
 import csv
 import logging
 import os.path
+from collections.abc import Generator
+from typing import Any
 
 import scrapy
 
@@ -29,67 +31,91 @@ logging.getLogger('').addHandler(console)
 class CodeBlockSpider(CrawlSpider):
     name = 'code_block_spider'
     LOGS_FOLDER = '.logs'
+    RESULTS_FOLDER = 'results'
     retry_enabled = False
 
-    def __init__(self, start_point, domain_zone, query, parsed_links_limit_per_url, max_url_deep_level):
+    # Data files
+    SCRAPED_URLS_FILEPATH = os.path.join(RESULTS_FOLDER, "scraped_urls.csv")
+    SCRAPED_URLS_FILEPATH_TXT = os.path.join(RESULTS_FOLDER, "scraped_urls.txt")
+    RESULT_FILEPATH = os.path.join(RESULTS_FOLDER, "result.csv")
+    RESULT_FILEPATH_TXT = os.path.join(RESULTS_FOLDER, "result.txt")
+
+    def __init__(
+            self,
+            start_point: str,
+            domain_zone: str,
+            query: str,
+            parsed_links_limit_per_url: int,
+            max_url_deep_level: int,
+            full_search: bool,
+            *args,
+            **kwargs
+    ) -> None:
+        super().__init__(*args, **kwargs)
         self.start_urls = [start_point]
         self.domain_zone = "" if domain_zone.lower() in ("any", "*") else domain_zone
         self.query = query
         self.PARSED_LINKS_LIMIT_PER_URL = parsed_links_limit_per_url
         self.MAXIMUM_URL_DEEP_LEVEL = max_url_deep_level
+        self.enable_full_search = full_search
         self.processed_links = []
 
-        # Prepare data files
-        self.output_filename = "output.csv"
-        self.output_filename_txt = "output.txt"
-        self.result_filename = "query_output.csv"
-        self.result_filename_txt = "query_output.txt"
-
-        self.prepare_env()
+        self.selenium_driver = None
         self.configure_selenium_driver()
 
-    def configure_selenium_driver(self) -> None:
+    def configure_selenium_driver(
+            self
+    ) -> None:
+        """Configure Selenium driver"""
         chrome_options = Options()
         chrome_options.add_argument('--headless')
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--incognito')
-        self.driver = webdriver.Chrome(options=chrome_options)
-        self.driver.set_page_load_timeout(10)
 
-    def get_start_url_repr(self) -> str:
+        # Set up the driver
+        self.selenium_driver = webdriver.Chrome(options=chrome_options)
+        self.selenium_driver.set_page_load_timeout(10)
+
+    def get_start_url_repr(
+            self
+    ) -> str:
+        """Get the start URL representation"""
         return str(urlparse(self.start_urls[0]).netloc).replace(".", "_")
 
-    def prepare_env(
-            self
-    ) -> None:
-        output_filename = "output.csv"
-        output_filename_txt = "output.txt"
-        result_filename = "query_output.csv"
-        result_filename_txt = "query_output.txt"
+    @staticmethod
+    def prepare_env() -> None:
+        """Prepare the environment for the spider"""
 
-        if not os.path.exists(self.LOGS_FOLDER):
-            os.makedirs(self.LOGS_FOLDER)
+        # Create .logs folder if missing
+        if not os.path.exists(CodeBlockSpider.LOGS_FOLDER):
+            os.makedirs(CodeBlockSpider.LOGS_FOLDER)
+
+        # Create results folder if missing
+        if not os.path.exists(CodeBlockSpider.RESULTS_FOLDER):
+            os.makedirs(CodeBlockSpider.RESULTS_FOLDER)
 
         # Remove old data files
-        if os.path.isfile(output_filename):
-            os.remove(output_filename)
-        if os.path.isfile(output_filename_txt):
-            os.remove(output_filename_txt)
-        if os.path.isfile(result_filename):
-            os.remove(result_filename)
-        if os.path.isfile(result_filename_txt):
-            os.remove(result_filename_txt)
+        if os.path.isfile(CodeBlockSpider.SCRAPED_URLS_FILEPATH):
+            os.remove(CodeBlockSpider.SCRAPED_URLS_FILEPATH)
+        if os.path.isfile(CodeBlockSpider.SCRAPED_URLS_FILEPATH_TXT):
+            os.remove(CodeBlockSpider.SCRAPED_URLS_FILEPATH_TXT)
+        if os.path.isfile(CodeBlockSpider.RESULT_FILEPATH):
+            os.remove(CodeBlockSpider.RESULT_FILEPATH)
+        if os.path.isfile(CodeBlockSpider.RESULT_FILEPATH_TXT):
+            os.remove(CodeBlockSpider.RESULT_FILEPATH_TXT)
 
         # Add headers to csv files
-        with open(output_filename, 'w', newline='') as file:
+        with open(CodeBlockSpider.SCRAPED_URLS_FILEPATH, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["URL", "Deep Level"])
-        with open(result_filename, 'w', newline='') as file:
+        with open(CodeBlockSpider.RESULT_FILEPATH, 'w', newline='') as file:
             writer = csv.writer(file)
             writer.writerow(["Base URL", "Search Query"])
 
-    def start_requests(self):
-        # Start the spider by visiting the start URL
+    def start_requests(
+            self
+    ) -> Generator[scrapy.Request, None, None]:
+        """Start the spider by visiting the start URL"""
         yield scrapy.Request(
             url=self.start_urls[0],
             callback=self.parse,
@@ -97,24 +123,36 @@ class CodeBlockSpider(CrawlSpider):
             cb_kwargs={'url_deep_level': 0}
         )
 
-    def close(self, reason):
-        self.driver.close()
+    def close(
+            self,
+            reason: Any
+    ) -> None:
+        """Close the spider"""
+        self.selenium_driver.close()
 
-    def parse_error(self, failure):
-        if failure.check(DNSLookupError):
-            return
+    def parse_error(
+            self,
+            failure
+    ) -> None:
+        """Check for timeout errors and dns lookup errors.
+        If any of these errors occur, the spider will retry the request.
+        """
+        if failure.check(TimeoutException) or failure.check(DNSLookupError):
+            self.logger.error(repr(failure))
 
-    def parse(self, response, url_deep_level):
+    def parse(self, response, *args, **kwargs):
         logging.log(logging.INFO, f"Started processing {response.url}")
+
+        url_deep_level = kwargs.get('url_deep_level', 0)
 
         # Extract SPA content
         try:
-            self.driver.get(response.url)
-            WebDriverWait(self.driver, 10).until(
+            self.selenium_driver.get(response.url)
+            WebDriverWait(self.selenium_driver, 10).until(
                 lambda driver: driver.execute_script("return document.readyState") == "complete")
         except TimeoutException:
             return
-        body = to_bytes(self.driver.page_source)
+        body = to_bytes(self.selenium_driver.page_source)
         selenium_response = HtmlResponse(response.url, body=body, encoding='utf-8')
 
         if 0 < self.MAXIMUM_URL_DEEP_LEVEL < url_deep_level:
@@ -135,22 +173,24 @@ class CodeBlockSpider(CrawlSpider):
 
         # Preprocess links (convert to absolute url and remove all protocols except http/https)
         links = [urljoin(response.url, link) for link in links]
-        links = [link for link in links if link.startswith("http")]
-
-        result_links = []
+        result_links = set()
 
         # Write the result URL and it's searched term url
-        with open(self.result_filename, mode='a', newline='') as file:
+        with open(self.RESULT_FILEPATH, mode='a', newline='') as file:
             writer = csv.writer(file)
-            for link in links:
-                if self.query in link and link not in result_links:
-                    result_links.append(link)
+            if self.enable_full_search and self.query in self.selenium_driver.page_source:
+                writer.writerow([response.url, self.query])
+            else:
+                result_links = {link for link in links if self.query in link}
+                for link in result_links:
                     writer.writerow([response.url, link])
 
         # Write the result searched URL
-        with open(self.result_filename_txt, mode='a', newline='') as file:
-            if result_links:
+        with open(self.RESULT_FILEPATH_TXT, mode='a', newline='') as file:
+            if (self.enable_full_search and self.query in self.selenium_driver.page_source) or result_links:
                 file.write(f"{response.url}\n")
+
+        links = [link for link in links if link.startswith("http")]
 
         # Filter out already processed links to prevent infinite loops from all sources
         new_links = [link for link in links
@@ -166,12 +206,12 @@ class CodeBlockSpider(CrawlSpider):
         self.processed_links.append(response.url)
 
         # Write the current URL and deep level to the output file
-        with open(self.output_filename, mode='a', newline='') as file:
+        with open(self.SCRAPED_URLS_FILEPATH, mode='a', newline='') as file:
             writer = csv.writer(file)
             writer.writerow([response.url, url_deep_level])
 
         # Write the current URL to the output txt file
-        with open(self.output_filename_txt, mode='a', newline='') as file:
+        with open(self.SCRAPED_URLS_FILEPATH_TXT, mode='a', newline='') as file:
             file.write(f"{response.url}\n")
 
         # Add new links to the queue
