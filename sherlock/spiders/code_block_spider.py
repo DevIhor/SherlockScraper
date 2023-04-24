@@ -4,7 +4,6 @@ import os.path
 from collections.abc import Generator
 from typing import Any
 
-import browsers
 import scrapy
 
 from urllib.parse import urljoin, urlparse
@@ -71,6 +70,8 @@ class CodeBlockSpider(CrawlSpider):
             self
     ) -> None:
         """Configure Selenium driver"""
+        import browsers
+
         available_browsers = {item['browser_type'] for item in browsers.browsers()}
 
         if {"chrome", "chromium"} & available_browsers:
