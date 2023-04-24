@@ -3,7 +3,7 @@
 The file contains important changes from version to version
 
 
-## v0.1.0 - (2023.04.07 - ...)
+## v0.1.0 - (2023.04.07 - 2024.04.24)
 
 ### Features
 
