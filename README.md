@@ -60,7 +60,8 @@ deactivate
 - `--domain_zone ...` - set domain zone for urls to scrape;
 - `--query ...` - set query to search for on all scraped web-pages;
 - `--full_search` - enable searching for query also inside `.js` files;
-- `--links_per_url ...` - set amount of urls to extract, and scrape in deep, per web-page;
+- `--links_per_url ...` - set amount of urls to extract, 
+and scrape in deep, per web-page;
 - `--scraping_deep_level ...` - set the level of deep to scrape web-pages;
 - `--concurrency ...` - set amount of concurrent requests;
 
@@ -82,4 +83,15 @@ python start.py --start_point="https://ukr.net" --domain_zone=".net" --query="an
 
 `output.csv` - list of scrapped urls + url deep level
 
-`query_output.csv` - list of web-pages urls that have query string + url with query string
+`query_output.csv` - list of web-pages urls that have query string + url 
+with query string
+
+## Notes
+
+- To start the scraper, you need to have installed at least one web-browser 
+*(Chrome, Firefox, MsEdge, Safari)*.
+- If you have installed only Safari browser on your computer, you need 
+to enable Safari driver, just running the following command.
+```bash
+safaridriver --enable
+```

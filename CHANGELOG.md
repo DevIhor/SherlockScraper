@@ -9,6 +9,9 @@ The file contains important changes from version to version
 
 * Added new domain zone: `any`
 * File logging (scrapy + selenium)
+* Added looking for any matched query on the page
+* Added processing js files
+* Added support of multiple built-in web-browsers (Chrome/Chromium, Firefox, Edge, Safari)
 
 ## v0.1.0 - (2023.03.13 - 2023.04.07)
 

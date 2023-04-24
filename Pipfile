@@ -7,6 +7,7 @@ name = "pypi"
 scrapy = "*"
 selenium = "*"
 twisted = "*"
+pybrowsers = "*"
 
 [dev-packages]
 

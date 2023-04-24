@@ -4,6 +4,7 @@ import os.path
 from collections.abc import Generator
 from typing import Any
 
+import browsers
 import scrapy
 
 from urllib.parse import urljoin, urlparse
@@ -15,7 +16,10 @@ from scrapy.spiders import CrawlSpider
 
 from selenium import webdriver
 from selenium.common import TimeoutException
-from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.firefox.options import Options as FirefoxOptions
+from selenium.webdriver.edge.options import Options as EdgeOptions
+from selenium.webdriver.safari.options import Options as SafariOptions
 from selenium.webdriver.support.wait import WebDriverWait
 
 from twisted.internet.error import DNSLookupError
@@ -67,13 +71,28 @@ class CodeBlockSpider(CrawlSpider):
             self
     ) -> None:
         """Configure Selenium driver"""
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--ignore-certificate-errors')
-        chrome_options.add_argument('--incognito')
+        available_browsers = {item['browser_type'] for item in browsers.browsers()}
 
-        # Set up the driver
-        self.selenium_driver = webdriver.Chrome(options=chrome_options)
+        if {"chrome", "chromium"} & available_browsers:
+            browser_options = ChromeOptions()
+            browser_options.add_argument('--headless')
+            browser_options.add_argument('--ignore-certificate-errors')
+            browser_options.add_argument('--incognito')
+            self.selenium_driver = webdriver.Chrome(options=browser_options)
+        elif {"firefox"} & available_browsers:
+            browser_options = FirefoxOptions()
+            browser_options.add_argument('-headless')
+            self.selenium_driver = webdriver.Firefox(options=browser_options)
+        elif {"msedge"} & available_browsers:
+            browser_options = EdgeOptions()
+            browser_options.add_argument('--headless')
+            browser_options.add_argument('--ignore-certificate-errors')
+            browser_options.add_argument('--incognito')
+            self.selenium_driver = webdriver.Edge(options=browser_options)
+        elif {"safari"} & available_browsers:
+            browser_options = SafariOptions()
+            self.selenium_driver = webdriver.Safari(options=browser_options)
+
         self.selenium_driver.set_page_load_timeout(10)
 
     def get_start_url_repr(
@@ -138,7 +157,7 @@ class CodeBlockSpider(CrawlSpider):
         If any of these errors occur, the spider will retry the request.
         """
         if failure.check(TimeoutException) or failure.check(DNSLookupError):
-            self.logger.error(repr(failure))
+            logging.log(CUSTOM_PRINT_LOG_LEVEL, repr(failure))
 
     def parse(self, response, *args, **kwargs):
         logging.log(logging.INFO, f"Started processing {response.url}")

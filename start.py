@@ -45,14 +45,6 @@ if __name__ == "__main__":
                         help="switch on full search mode (default is only links)")
     args = parser.parse_args()
 
-    # # Create .logs folder if missing
-    # if not os.path.exists(CodeBlockSpider.LOGS_FOLDER):
-    #     os.makedirs(CodeBlockSpider.LOGS_FOLDER)
-    #
-    # # Create results folder if missing
-    # if not os.path.exists(CodeBlockSpider.RESULTS_FOLDER):
-    #     os.makedirs(CodeBlockSpider.RESULTS_FOLDER)
-
     # Set crawler settings
     crawler_settings['CONCURRENT_REQUESTS'] = args.concurrency
     crawler_settings['LOG_FILE'] = os.path.join(
